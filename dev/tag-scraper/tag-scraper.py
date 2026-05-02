@@ -1,6 +1,8 @@
-import requests
 import json
 import time
+import configparser
+import subprocess
+import urllib.parse
 import os
 
 # Constants
@@ -13,9 +15,37 @@ CATEGORY_FILES = {
     5: "meta.txt",       # Meta tags
     'all': "all_tags.txt" # All tags combined
 }
-BASE_URL = "https://danbooru.donmai.us/tags.json"
+BASE_PATH = "/tags.json"
 LIMIT = 200  # Maximum limit per request
-MIN_COUNT = 100  # Minimum post count
+
+CONFIG_FILE   = os.path.join(os.path.dirname(__file__), "..", "config.ini")
+CONFIG_EXAMPLE = os.path.join(os.path.dirname(__file__), "..", "config.ini.example")
+
+def load_config():
+    import shutil
+    if not os.path.exists(CONFIG_FILE):
+        if os.path.exists(CONFIG_EXAMPLE):
+            shutil.copy(CONFIG_EXAMPLE, CONFIG_FILE)
+            print(f"Created config.ini from config.ini.example — please fill in your username and api_key in:\n  {os.path.abspath(CONFIG_FILE)}")
+        else:
+            raise FileNotFoundError(
+                f"Neither config.ini nor config.ini.example found in:\n  {os.path.abspath(os.path.dirname(CONFIG_FILE))}"
+            )
+    config = configparser.ConfigParser()
+    config.read(CONFIG_FILE)
+    min_count      = config.getint(  "scraper", "min_count",      fallback=100)
+    pause_interval = config.getfloat("scraper", "pause_interval", fallback=1.0)
+    return min_count, pause_interval
+
+def danbooru_get(path, params):
+    url = f"https://danbooru.donmai.us{path}?{urllib.parse.urlencode(params)}"
+    result = subprocess.run(
+        ['curl', '-s', '--max-time', '30', url],
+        capture_output=True, text=True
+    )
+    if result.returncode != 0:
+        raise RuntimeError(f"curl failed: {result.stderr.strip()[:200]}")
+    return json.loads(result.stdout)
 
 def ensure_output_dir():
     """Create output directory if it doesn't exist"""
@@ -47,24 +77,21 @@ def get_tags_with_count_over(min_count):
         
         try:
             print(f"Fetching page {page}...")
-            response = requests.get(BASE_URL, params=params)
-            response.raise_for_status()  # Raise an exception for HTTP errors
-            
-            tags = response.json()
-            
+            tags = danbooru_get(BASE_PATH, params)
+
             if not tags:
                 more_results = False
             else:
                 all_tags.extend(tags)
                 page += 1
-                
+
             # Be nice to the API and avoid rate limiting
-            time.sleep(1)
-            
-        except requests.exceptions.RequestException as e:
+            time.sleep(pause_interval)
+
+        except (RuntimeError, json.JSONDecodeError) as e:
             print(f"Error fetching data: {e}")
             break
-    
+
     return all_tags
 
 def save_tags_to_files(tags, append=False):
@@ -136,6 +163,7 @@ def clear_output_files():
         open(filepath, 'w').close()
 
 def main():
+    MIN_COUNT, PAUSE_INTERVAL = load_config()
     ensure_output_dir()
     
     # Get the last processed page
@@ -145,7 +173,7 @@ def main():
     total_tags = 0
     
     print(f"Fetching tags with count over {MIN_COUNT}...")
-    print(f"Resuming from page {page}...")
+    print(f"Resuming from page {page} | Pause: {PAUSE_INTERVAL}s...")
     
     # Clear files if starting from beginning
     if page == 1:
@@ -162,11 +190,8 @@ def main():
         
         try:
             print(f"Fetching page {page}...")
-            response = requests.get(BASE_URL, params=params)
-            response.raise_for_status()
-            
-            tags = response.json()
-            
+            tags = danbooru_get(BASE_PATH, params)
+
             if not tags:
                 more_results = False
             else:
@@ -174,11 +199,11 @@ def main():
                 save_tags_to_files(tags, append=(page != 1))
                 total_tags += len(tags)
                 page += 1
-                
+
             # Be nice to the API and avoid rate limiting
-            time.sleep(1)
-            
-        except requests.exceptions.RequestException as e:
+            time.sleep(PAUSE_INTERVAL)
+
+        except (RuntimeError, json.JSONDecodeError) as e:
             print(f"Error fetching data: {e}")
             break
     

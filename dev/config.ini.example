@@ -1,0 +1,17 @@
+[danbooru]
+username = 
+api_key = 
+
+[scraper]
+# Minimum score floor — score range will not go below this value
+score_min = 100
+# Starting score range for each rating (score_min <= score <= score_max_start)
+score_max_start = 2048
+# Maximum number of API requests before stopping (0 = run forever until Ctrl+C)
+max_runs = 0
+# Tags (posts) to fetch per request (max 200)
+tags_per_request = 200
+# Seconds to wait between requests (be nice to the API)
+pause_interval = 1.0
+# tag-scraper: minimum post count for a tag to be included
+min_count = 100
