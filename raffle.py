@@ -1,82 +1,36 @@
 import os
-import folder_paths
+import folder_paths #type: ignore
 import random
 
 # Default values for Raffle node
-DEFAULT_FILTER_OUT_TAGS = """monochrome, greyscale,
-cross-section, cervix, cervical_penetration, uterus, x-ray, internal_cumshot,
-lactation, forced_lactation, male_lactation, projectile_lactation, lactation_through_clothes, breast_milk,
-male_focus, male_penetrated, interracial, dark-skinned_male,
-gaping, extreme_gaping,
-prolapse, anal_prolapse, fisting, anal_fisting,
-anal, anal_only, after_anal, anal_fluid,
-anal_object_insertion, butt_plug, jewel_butt_plug, anal_beads, vibrator_in_anus,
-anus, cum_in_ass, spread_anus, spread_ass, anus_peek, puckered_anus, dark_anus, presenting_anus, spreading_own_anus, anus_cutout, censored_anus, spread_anus_under_clothes, colored_anus,
-pubic_hair, female_pubic_hair, pubic_hair_peek, colored_pubic_hair, sparse_pubic_hair, mismatched_pubic_hair, excessive_pubic_hair, shaped_pubic_hair,
-condom, used_condom, condom_wrapper, condom_in_mouth, holding_condom, condom_on_penis, multiple_condoms, condom_packet_strip, pointless_condom, condom_belt, condom_box, used_condom_on_penis, condom_left_inside, colored_condom, okamoto_condoms, condom_wrapper_in_clothes, condom_thigh_strap, buying_condoms, broken_condom, used_condom_in_clothes,
-"""
+DEFAULT_FILTER_OUT_TAGS = """monochrome, greyscale, cross-section"""
 
-DEFAULT_EXCLUDE_TAGLISTS = "comic, 4koma, multiple_girls, multiple_boys, multiple_views, reference_sheet, 2girls, 3girls, 4girls, 5girls, 6+girls, 2boys, 3boys, 4boys, 5boys, 6+boys, gangbang, threesome, mmf_threesome, ffm_threesome, group_sex, cooperative_fellatio, cooperative_paizuri, double_handjob, surrounded_by_penises, furry, obese, yaoi, yuri, otoko_no_ko, strap-on, futa_with_female, futa_without_pussy, implied_futanari, futanari, diaper, fart, pee, peeing, pee_puddle, pee_stain, peeing_self, golden_shower, scat, guro, ero_guro, intestines, vore, horse_penis"
+DEFAULT_EXCLUDE_TAGLISTS = "comic, 4koma, multiple_views, reference_sheet"
 
-DEFAULT_EXCLUDE_CATEGORIES = "artist, character_name, copyright, meta, clothes_and_accessories, female_physical_descriptors, named_garment_exposure, specific_garment_interactions, speech_and_text, standard_physical_descriptors, metadata_and_attribution, intentional_design_exposure, two_handed_character_items, holding_large_items, content_censorship_methods"
+DEFAULT_EXCLUDE_CATEGORIES = "artist, character_name, copyright, meta, speech_and_text, metadata_and_attribution, intentional_design_exposure, content_censorship_methods"
 
 DEFAULT_TAGLISTS_MUST_INCLUDE = "1girl"
 
-# Critical categories that should be excluded to maintain workflow
-WARNING_ABOUT_NEW_CATEGORIES = {'artist', 'character_name', 'copyright', 'meta'}
+# Derive available categories from categorized_tags.txt so they stay in sync
+# and users can extend the file without touching code.
+def _load_categories_from_file():
+    extension_path = os.path.normpath(os.path.dirname(__file__))
+    filepath = os.path.join(extension_path, "lists", "categorized_tags.txt")
+    categories = set()
+    try:
+        with open(filepath, 'r', encoding='utf-8') as f:
+            for line in f:
+                line = line.strip()
+                if line.startswith('[') and '] ' in line:
+                    category = line[1:line.index(']')]
+                    categories.add(category)
+    except Exception:
+        pass
+    return sorted(categories)
 
-# Global list of all available categories - used by both Raffle and TagCategoryStrength
-ALL_CATEGORIES = [
-    'abstract_symbols',
-    'actions',
-    'artstyle_technique',
-    'artist',
-    'background_objects',
-    'bodily_fluids',
-    'camera_angle_perspective',
-    'camera_focus_subject',
-    'camera_framing_composition',
-    'character_count',
-    'character_name',
-    'clothes_and_accessories',
-    'color_scheme',
-    'content_censorship_methods',
-    'copyright',
-    'expressions_and_mental_state',
-    'female_intimate_anatomy',
-    'female_physical_descriptors',
-    'format_and_presentation',
-    'gaze_direction_and_eye_contact',
-    'general_clothing_exposure',
-    'generic_clothing_interactions',
-    'holding_large_items',
-    'holding_small_items',
-    'intentional_design_exposure',
-    'lighting_and_vfx',
-    'male_intimate_anatomy',
-    'male_physical_descriptors',
-    'meta',
-    'metadata_and_attribution',
-    'named_garment_exposure',
-    'nudity_and_absence_of_clothing',
-    'one_handed_character_items',
-    'physical_locations',
-    'poses',
-    'publicly_visible_anatomy',
-    'relationships',
-    'sex_acts',
-    'sfw_clothed_anatomy',
-    'special_backgrounds',
-    'specific_garment_interactions',
-    'speech_and_text',
-    'standard_physical_descriptors',
-    'thematic_settings',
-    'two_handed_character_items'
-]
+ALL_CATEGORIES = _load_categories_from_file()
 
 class Raffle:
-    # Class variable to track if the critical categories warning has been shown
-    _critical_warning_shown = False
     
     @classmethod
     def INPUT_TYPES(s):
@@ -112,7 +66,7 @@ class Raffle:
                 "exclude_tag_categories": ("STRING", {
                     "multiline": True,
                     "default": DEFAULT_EXCLUDE_CATEGORIES,
-                    "tooltip": "<exclude_tag_categories> Exclude entire categories of tags from the final output. Each category contains related tags (e.g., 'poses' contains all pose-related tags). View the complete category list and their tags in the 'Debug info' output. Separate multiple categories with commas."
+                    "tooltip": "<exclude_tag_categories> Exclude entire categories of tags from the final output. Each category contains related tags (e.g., 'poses' contains all pose-related tags). View the complete category list in the 'Debug info' output. Separate multiple categories with commas. Commonly excluded: artist, character_name, copyright, meta, clothes_and_accessories, female_physical_descriptors, named_garment_exposure, specific_garment_interactions, speech_and_text, standard_physical_descriptors, metadata_and_attribution, intentional_design_exposure, two_handed_character_items, holding_large_items, content_censorship_methods"
                 })
             },
             "optional": {
@@ -252,20 +206,7 @@ class Raffle:
                             f"Category names may have changed in a new version.")
                 raise ValueError(error_msg)
         
-        # Check if critical categories are excluded
         excluded_categories_set = set(excluded_categories)
-        # Only show warning if NONE of the critical categories are excluded
-        critical_categories_excluded = WARNING_ABOUT_NEW_CATEGORIES & excluded_categories_set
-        if not critical_categories_excluded and not Raffle._critical_warning_shown:
-            # Mark that we've shown the warning
-            Raffle._critical_warning_shown = True
-            warning_msg = (
-                "There's been an update that will potentially break your Raffle generations.\n\n"
-                "To maintain your existing workflow, you will need to manually add some categories "
-                "to the <exclude_tag_categories> section of the raffle node (bottom section).\n\n"
-                f"Add the following categories to be excluded: artist, character_name, copyright, meta"
-            )
-            raise ValueError(warning_msg)
         
         # Set up categories dictionary - enable all categories except excluded ones
         categories = {category: (category not in excluded_categories) for category in all_categories}
