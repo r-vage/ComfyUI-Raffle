@@ -11,10 +11,18 @@ DEFAULT_EXCLUDE_CATEGORIES = "artist, character_name, copyright, meta, speech_an
 
 DEFAULT_TAGLISTS_MUST_INCLUDE = "1girl"
 
-# Derive available categories from categorized_tags.txt so they stay in sync
-# and users can extend the file without touching code.
+# Load categories from lists/categories.txt (one per line, user-editable).
+# Falls back to scanning the full categorized_tags.txt if that file is missing.
 def _load_categories_from_file():
     extension_path = os.path.normpath(os.path.dirname(__file__))
+    categories_file = os.path.join(extension_path, "lists", "categories.txt")
+    if os.path.exists(categories_file):
+        try:
+            with open(categories_file, 'r', encoding='utf-8') as f:
+                return sorted(line.strip() for line in f if line.strip())
+        except Exception:
+            pass
+    # Fallback: derive from the full tag file
     filepath = os.path.join(extension_path, "lists", "categorized_tags.txt")
     categories = set()
     try:
@@ -22,8 +30,7 @@ def _load_categories_from_file():
             for line in f:
                 line = line.strip()
                 if line.startswith('[') and '] ' in line:
-                    category = line[1:line.index(']')]
-                    categories.add(category)
+                    categories.add(line[1:line.index(']')])
     except Exception:
         pass
     return sorted(categories)
