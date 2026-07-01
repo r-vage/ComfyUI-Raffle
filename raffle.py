@@ -1,6 +1,18 @@
 import os
 import folder_paths #type: ignore
 import random
+import fnmatch
+
+
+def matches_any_pattern(tag: str, patterns: list[str]) -> bool:
+    for pattern in patterns:
+        if '*' in pattern:
+            if fnmatch.fnmatchcase(tag, pattern):
+                return True
+        else:
+            if tag == pattern:
+                return True
+    return False
 
 # Default values for Raffle node
 DEFAULT_FILTER_OUT_TAGS = """monochrome, greyscale, cross-section"""
@@ -109,7 +121,14 @@ class Raffle:
             valid_taglists = []
             
             # Pre-compute sets for faster lookups - no need to normalize these
-            exclude_tags_set = set(exclude_tags) if exclude_tags else None
+            exclude_literals = set()
+            exclude_wildcards = []
+            if exclude_tags:
+                for pat in exclude_tags:
+                    if '*' in pat:
+                        exclude_wildcards.append(pat)
+                    else:
+                        exclude_literals.add(pat)
             taglists_must_include_set = set(taglists_must_include_tags) if taglists_must_include_tags else None
             
             # First pass: find taglists that match our criteria
@@ -123,7 +142,18 @@ class Raffle:
                     taglist_tags = frozenset(tag.strip() for tag in taglist.split(','))
                     
                     # Check for excluded tags first (using set intersection for speed)
-                    if exclude_tags_set and not taglist_tags.isdisjoint(exclude_tags_set):
+                    has_exclude = False
+                    if exclude_literals and not taglist_tags.isdisjoint(exclude_literals):
+                        has_exclude = True
+                    elif exclude_wildcards:
+                        for tag in taglist_tags:
+                            for pat in exclude_wildcards:
+                                if fnmatch.fnmatchcase(tag, pat):
+                                    has_exclude = True
+                                    break
+                            if has_exclude:
+                                break
+                    if has_exclude:
                         continue
                     
                     # If we have required tags, check if they're all in this taglist
@@ -291,15 +321,16 @@ class Raffle:
             raise
 
         # Remove excluded tags
-        filtered_tags = [tag for tag in filtered_tags if tag not in excluded_tags]
+        excluded_patterns = self.normalize_tags(exclude_taglists_containing)
+        filtered_tags = [tag for tag in filtered_tags if not matches_any_pattern(tag, excluded_patterns)]
         
         # Process negative prompt tags
-        negative_tags = set(self.normalize_tags(negative_prompt))
-        filtered_tags = [tag for tag in filtered_tags if tag not in negative_tags]
+        negative_patterns = self.normalize_tags(negative_prompt)
+        filtered_tags = [tag for tag in filtered_tags if not matches_any_pattern(tag, negative_patterns)]
 
         # Process negative prompt 2 tags
-        filter_out_tags_set = set(self.normalize_tags(filter_out_tags))
-        filtered_tags = [tag for tag in filtered_tags if tag not in filter_out_tags_set]
+        filter_out_patterns = self.normalize_tags(filter_out_tags)
+        filtered_tags = [tag for tag in filtered_tags if not matches_any_pattern(tag, filter_out_patterns)]
 
         debug_info = f"Taglist pool size: {len(all_valid_taglists)}\n\n{categories_debug}"
         return_values = (
