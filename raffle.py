@@ -86,7 +86,8 @@ class Raffle:
                     "multiline": True,
                     "default": DEFAULT_EXCLUDE_CATEGORIES,
                     "tooltip": "<exclude_tag_categories> Exclude entire categories of tags from the final output. Each category contains related tags (e.g., 'poses' contains all pose-related tags). View the complete category list in the 'Debug info' output. Separate multiple categories with commas. Commonly excluded: artist, character_name, copyright, meta, clothes_and_accessories, female_physical_descriptors, named_garment_exposure, specific_garment_interactions, speech_and_text, standard_physical_descriptors, metadata_and_attribution, intentional_design_exposure, two_handed_character_items, holding_large_items, content_censorship_methods"
-                })
+                }),
+                "replace_underscores": ("BOOLEAN", {"default": False, "tooltip": "If True, replaces underscores with whitespace in the output taglists"})
             },
             "optional": {
                 "negative_prompt": ("STRING", {
@@ -212,7 +213,7 @@ class Raffle:
     def process_tags(self, exclude_taglists_containing, taglists_must_include, seed,
                     filter_out_tags="", use_general=True, use_questionable=False, 
                     use_sensitive=False, use_explicit=False, exclude_tag_categories="",
-                    negative_prompt=""):
+                    negative_prompt="", replace_underscores=False):
         
         # Add directory existence check
         extension_path = os.path.normpath(os.path.dirname(__file__))
@@ -332,10 +333,17 @@ class Raffle:
         filter_out_patterns = self.normalize_tags(filter_out_tags)
         filtered_tags = [tag for tag in filtered_tags if not matches_any_pattern(tag, filter_out_patterns)]
 
+        output_tags = ', '.join(filtered_tags)
+        output_unfiltered = unfiltered_taglist
+
+        if replace_underscores:
+            output_tags = output_tags.replace('_', ' ')
+            output_unfiltered = output_unfiltered.replace('_', ' ')
+
         debug_info = f"Taglist pool size: {len(all_valid_taglists)}\n\n{categories_debug}"
         return_values = (
-            ', '.join(filtered_tags),
-            unfiltered_taglist,
+            output_tags,
+            output_unfiltered,
             debug_info
         )
         
